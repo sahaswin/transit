@@ -1,13 +1,15 @@
-import tweepy
+import snscrape.modules.twitter as sntwitter
 from transformers import pipeline
 from pymongo import MongoClient
 from datetime import datetime
 import re
 import os
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # ---- Twitter API Setup ---- #
 BEARER_TOKEN = os.getenv('BEARER_TOKEN')
-client = tweepy.Client(bearer_token=BEARER_TOKEN)
 
 # ---- MongoDB Setup ---- #
 mongo_client = MongoClient(os.getenv('MONGO_URI', 'mongodb://localhost:27017/'))
@@ -19,12 +21,14 @@ classifier = pipeline("text-classification", model="distilbert-base-uncased")
 
 
 # ---- Fetch Tweets ---- #
-def fetch_tweets():
-    query = '(from:ttcnotices OR from:ttchelps) -is:retweet'
-    tweets = client.search_recent_tweets(query=query, max_results=100)
-    return tweets.data if tweets else []
 
-
+def scrape_tweets():
+    tweets = []
+    for tweet in sntwitter.TwitterSearchScraper('from:ttcnotices').get_items():
+        tweets.append(tweet)
+        if len(tweets) >= 10:
+            break
+    return tweets
 
 # ---- Preprocess Tweets ---- #
 def preprocess_tweet(text):
@@ -57,7 +61,7 @@ def save_to_db(tweet, category, processed_text):
 
 # ---- Main Pipeline ---- #
 def main_pipeline():
-    tweets = fetch_tweets()
+    tweets =  scrape_tweets()
     for tweet in tweets:
         analyze_tweet(tweet)
 
